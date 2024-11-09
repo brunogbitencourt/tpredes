@@ -1,0 +1,36 @@
+# Arquivos de compilação
+*.o
+*.a
+*.out
+*.so
+*.exe
+*.dll
+
+# Arquivos temporários do sistema
+*~
+*.bak
+*.swp
+
+# Arquivos de configuração do editor
+.vscode/
+.idea/
+
+# Arquivos de log
+*.log
+
+# Arquivos de compilação específicos do sistema
+*.dSYM/  # Para macOS
+
+# Arquivos temporários de compilação
+build/
+debug/
+release/
+
+# Arquivos de dependências do ambiente
+*.env
+
+# Arquivos do CMake (caso esteja usando)
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake

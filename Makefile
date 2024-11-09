@@ -1,25 +1,34 @@
-# Nome do executável
-TARGET = server
+# Nomes dos executáveis
+TARGET_SERVER = server
+TARGET_CLIENT = client
 
 # Arquivos fonte
-SRC = server.c
+SRC_SERVER = server.c
+SRC_CLIENT = client.c
 
 # Compilador e flags
 CC = gcc
 CFLAGS = -Wall
 
-# Regras do Makefile
+# Regra padrão para construir ambos os executáveis
+all: $(TARGET_SERVER) $(TARGET_CLIENT)
 
-# Regra padrão para construir o executável
-all: $(TARGET)
+# Compila o servidor
+$(TARGET_SERVER): $(SRC_SERVER)
+	$(CC) $(CFLAGS) -o $(TARGET_SERVER) $(SRC_SERVER)
 
-$(TARGET): $(SRC)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRC)
+# Compila o cliente
+$(TARGET_CLIENT): $(SRC_CLIENT)
+	$(CC) $(CFLAGS) -o $(TARGET_CLIENT) $(SRC_CLIENT)
 
 # Regra para executar o servidor
-run: $(TARGET)
-	./$(TARGET)
+run_server: $(TARGET_SERVER)
+	./$(TARGET_SERVER)
+
+# Regra para executar o cliente
+run_client: $(TARGET_CLIENT)
+	./$(TARGET_CLIENT)
 
 # Limpeza dos arquivos gerados
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET_SERVER) $(TARGET_CLIENT)
