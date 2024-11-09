@@ -29,6 +29,7 @@ typedef struct {
 
 void setup_timer();
 void send_periodic_message(fd_set *clients, int *client_fds);
+void handle_message(int client_fd, int *client_fds, fd_set *clients);
 
 int main() {
     int server_fd, new_socket;
@@ -108,11 +109,9 @@ int main() {
         for (int i = 0; i < MAX_CLIENTS; i++) {
             int client_fd = client_fds[i];
             if (client_fd != -1 && FD_ISSET(client_fd, &read_fds)) {
-                // Aqui você pode ler dados do cliente ou processar a conexão
+                handle_message(client_fd, client_fds, &clients);
             }
         }
-
-
     }
    
    
@@ -160,4 +159,70 @@ void send_periodic_message(fd_set *clients, int *client_fds) {
     }
 
     printf("Mensagem periódica enviada para todos os clientes conectados.\n");
+}
+
+
+void handle_message(int client_fd, int *client_fds, fd_set *clients) {
+    msg_t message;
+    int bytes_received = recv(client_fd, &message, sizeof(message), 0);
+
+    if (bytes_received <= 0) {
+        if (bytes_received == 0) {
+            printf("Cliente %d desconectado.\n", client_fd);
+        } else {
+            perror("Erro ao receber dados");
+        }
+
+        close(client_fd);
+        FD_CLR(client_fd, clients);
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (client_fds[i] == client_fd) {
+                client_fds[i] = -1;
+                break;
+            }
+        }
+        return;
+    }
+
+    switch (message.type) {
+        case 0:  // OI
+            printf("Cliente %d identificado com ID %d.\n", client_fd, message.orig_uid);
+            send(client_fd, &message, sizeof(message), 0);  // Envia de volta a confirmação "OI"
+            break;
+
+        case 1:  // TCHAU
+            printf("Cliente %d se desconectando.\n", client_fd);
+            close(client_fd);
+            FD_CLR(client_fd, clients);
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (client_fds[i] == client_fd) {
+                    client_fds[i] = -1;
+                    break;
+                }
+            }
+            break;
+
+        case 2:  // MSG
+            if (message.dest_uid == 0) {  // Broadcast para todos
+                printf("Mensagem pública de %d: %s\n", message.orig_uid, message.text);
+                for (int i = 0; i < MAX_CLIENTS; i++) {
+                    int dest_fd = client_fds[i];
+                    if (dest_fd != -1 && dest_fd != client_fd) {
+                        send(dest_fd, &message, sizeof(message), 0);
+                    }
+                }
+            } else {  // Mensagem privada
+                printf("Mensagem privada de %d para %d: %s\n", message.orig_uid, message.dest_uid, message.text);
+                for (int i = 0; i < MAX_CLIENTS; i++) {
+                    if (client_fds[i] != -1 && client_fds[i] != client_fd) {
+                        send(client_fds[i], &message, sizeof(message), 0);
+                    }
+                }
+            }
+            break;
+
+        default:
+            printf("Tipo de mensagem desconhecido.\n");
+            break;
+    }
 }

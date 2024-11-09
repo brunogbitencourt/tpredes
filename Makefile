@@ -1,34 +1,35 @@
 # Nomes dos executáveis
 SERVER = server
-CLIENT = client
+RECEIVER = receiver
 
 # Arquivos fonte
 SERVER_SRC = server.c
-CLIENT_SRC = client.c
+RECEIVER_SRC = receiver.c
 
 # Compilador e flags
 CC = gcc
 CFLAGS = -Wall
 
 # Regra padrão para construir ambos executáveis
-all: $(SERVER) $(CLIENT)
+all: $(SERVER) $(RECEIVER)
 
 # Compilar o servidor
 $(SERVER): $(SERVER_SRC)
 	$(CC) $(CFLAGS) -o $(SERVER) $(SERVER_SRC)
 
-# Compilar o cliente
-$(CLIENT): $(CLIENT_SRC)
-	$(CC) $(CFLAGS) -o $(CLIENT) $(CLIENT_SRC)
+# Compilar o receiver
+$(RECEIVER): $(RECEIVER_SRC)
+	$(CC) $(CFLAGS) -o $(RECEIVER) $(RECEIVER_SRC)
 
 # Regra para executar o servidor
 run-server: $(SERVER)
 	./$(SERVER)
 
-# Regra para executar o cliente
-run-client: $(CLIENT)
-	./$(CLIENT)
+# Regra para executar o receiver com parâmetros ID e IP
+run-receiver: $(RECEIVER)
+	@echo "Executando receiver com ID=$(ID) e IP=$(IP)"
+	./$(RECEIVER) $(ID) $(IP)
 
 # Limpeza dos arquivos gerados
 clean:
-	rm -f $(SERVER) $(CLIENT)
+	rm -f $(SERVER) $(RECEIVER)
