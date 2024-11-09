@@ -3,32 +3,34 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <asm-generic/socket.h>
 
-void start_client(const char *message);
+void start_sender(const char *message, const char *sender_ip);  // Função alterada para aceitar sender_ip
 
 int main() {
     char message[1024];
+    const char *sender_ip = "127.0.0.1"; // Endereço IP do sender (alterado para localhost)
+
+    printf("IP do sender: %s\n", sender_ip);  // Exibe o IP do sender
 
     while (1) {
-        printf("Digite uma mensagem para enviar ao servidor (ou 'exit_client' para sair): ");
+        printf("Digite uma mensagem para enviar ao servidor (ou 'exit_sender' para sair): ");
         fgets(message, sizeof(message), stdin);
         message[strcspn(message, "\n")] = 0; // Remove a quebra de linha
 
-        // Verifica se a mensagem é "exit_client" para encerrar o loop
-        if (strcmp(message, "exit_client") == 0) {
-            printf("Encerrando o cliente...\n");
+        // Verifica se a mensagem é "exit_sender" para encerrar o loop
+        if (strcmp(message, "exit_sender") == 0) {
+            printf("Encerrando o sender...\n");
             break;
         }
 
         // Envia a mensagem para o servidor
-        start_client(message);
+        start_sender(message, sender_ip);  // Passa o IP do sender
     }
 
     return 0;
 }
 
-void start_client(const char *message) {
+void start_sender(const char *message, const char *sender_ip) {
     int sock = 0;
     struct sockaddr_in serv_addr;
     char buffer[1024] = {0};
@@ -42,8 +44,8 @@ void start_client(const char *message) {
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(8080);
 
-    // Converte o endereço IP para o formato binário
-    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+    // Converte o endereço IP do sender para o formato binário
+    if (inet_pton(AF_INET, sender_ip, &serv_addr.sin_addr) <= 0) {
         printf("\n Endereço inválido ou não suportado \n");
         close(sock);
         return;
