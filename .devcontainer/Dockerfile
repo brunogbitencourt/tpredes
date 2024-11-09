@@ -1,19 +1,17 @@
-# Usa uma imagem base com suporte a C
+# Use uma imagem base com GCC instalado
 FROM gcc:latest
 
-# Define o diretório de trabalho no container
-WORKDIR /app
+# Instale o GDB para depuração
+RUN apt-get update && apt-get install -y gdb
 
-# Copia o código do servidor e do cliente para dentro do container
-COPY server.c .
-COPY client.c .
+# Defina o diretório de trabalho dentro do contêiner
+WORKDIR /workspace
 
-# Compila o código do servidor e do cliente
-RUN gcc -o server server.c
-RUN gcc -o client client.c
+# Copie todos os arquivos do projeto para dentro do contêiner
+COPY . /workspace
 
-# Define a porta para escutar conexões
+# Exponha a porta 8080 para comunicação (caso seja necessário para seu servidor)
 EXPOSE 8080
 
-# Comando padrão para rodar o servidor (para iniciar somente o servidor)
-CMD ["./server"]
+# Comando padrão do contêiner (pode ser substituído pelo VSCode para depuração)
+CMD ["/bin/bash"]

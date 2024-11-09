@@ -16,14 +16,7 @@ typedef struct {
     unsigned char text[MAX_TEXT_LEN];
 } msg_t;
 
-void handle_message(msg_t message) {
-    // Exibe a origem e o conteúdo da mensagem recebida
-    if (message.dest_uid == 0) {
-        printf("Mensagem pública de %d: %s\n", message.orig_uid, message.text);
-    } else {
-        printf("Mensagem privada de %d para %d: %s\n", message.orig_uid, message.dest_uid, message.text);
-    }
-}
+void send_message(int sock, int sender_id);
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
@@ -31,19 +24,17 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    int receiver_id = atoi(argv[1]);
+    int sender_id = atoi(argv[1]);
     char *server_ip = argv[2];
     int sock;
     struct sockaddr_in serv_addr;
     msg_t message;
 
-    // Validação do ID do cliente
-    if (receiver_id < 1 || receiver_id > 999) {
-        fprintf(stderr, "Erro: O identificador deve estar entre 1 e 999.\n");
+    if (sender_id < 1001 || sender_id > 1999) {
+        fprintf(stderr, "Erro: O identificador deve estar entre 1001 e 1999.\n");
         exit(EXIT_FAILURE);
     }
 
-    // Criação do socket
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Erro ao criar o socket");
         return -1;
@@ -57,17 +48,16 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // Conexão ao servidor
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("Falha na conexão");
         return -1;
     }
 
-    // Envia mensagem de identificação "OI"
+    // Envia uma mensagem "OI" para se registrar no servidor
     message.type = 0;  // Tipo 0 representa "OI"
-    message.orig_uid = receiver_id;  // Identificador único do cliente
-    message.dest_uid = 0;  // Destinatário 0 para indicar que é para todos
-    strcpy((char*)message.text, "Cliente de recepção conectado.");
+    message.orig_uid = sender_id;
+    message.dest_uid = 0;
+    strcpy((char*)message.text, "Cliente de envio conectado.");
     message.text_len = strlen((char*)message.text) + 1;
 
     if (send(sock, &message, sizeof(message), 0) < 0) {
@@ -76,38 +66,23 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // Aguarda confirmação do servidor
+    // Aguarda a confirmação "OI" do servidor
     if (recv(sock, &message, sizeof(message), 0) > 0 && message.type == 0) {
-        printf("Conectado ao servidor com sucesso! ID: %d.\n", receiver_id);
+        printf("Conectado ao servidor como sender com ID %d.\n", sender_id);
     } else {
         printf("Falha ao receber confirmação do servidor. Encerrando conexão.\n");
         close(sock);
         return -1;
     }
 
-    // Loop para receber mensagens continuamente
-    while (1) {
-        printf("Aguardando nova mensagem do servidor...\n");
-        int bytes_received = recv(sock, &message, sizeof(message), 0);
+    // Entra no loop de envio de mensagens
+    send_message(sock, sender_id);
 
-        if (bytes_received > 0) {
-            printf("Mensagem recebida, processando...\n");
-            handle_message(message);
-        } else if (bytes_received == 0) {
-            printf("Conexão fechada pelo servidor.\n");
-            break;
-        } else {
-            if (errno == EINTR) continue;  // Ignora interrupções por sinais
-            perror("Erro ao receber mensagem");
-            break;
-        }
-    }
-
-    // Envia mensagem "TCHAU" ao desconectar
+    // Envia a mensagem "TCHAU" ao desconectar
     message.type = 1;  // Tipo 1 representa "TCHAU"
-    message.orig_uid = receiver_id;
+    message.orig_uid = sender_id;
     message.dest_uid = 0;
-    strcpy((char*)message.text, "Cliente se desconectando.");
+    strcpy((char*)message.text, "Cliente de envio se desconectando.");
     message.text_len = strlen((char*)message.text) + 1;
 
     if (send(sock, &message, sizeof(message), 0) < 0) {
@@ -116,4 +91,39 @@ int main(int argc, char *argv[]) {
 
     close(sock);
     return 0;
+}
+
+// Função para enviar mensagens ao servidor
+void send_message(int sock, int sender_id) {
+    msg_t message;
+    message.type = 2;  // Tipo 2 representa "MSG"
+    message.orig_uid = sender_id;
+
+    while (1) {
+        printf("Digite o ID do destinatário (0 para todos): ");
+        int dest_id;
+        scanf("%d", &dest_id);
+        getchar();  // Remove o caractere de nova linha do buffer
+        message.dest_uid = dest_id;
+
+        printf("Digite sua mensagem (máximo %d caracteres): ", MAX_TEXT_LEN - 1);
+        fgets((char*)message.text, MAX_TEXT_LEN, stdin);
+
+        // Remove o '\n' da mensagem, se presente
+        message.text_len = strlen((char*)message.text);
+        if (message.text[message.text_len - 1] == '\n') {
+            message.text[message.text_len - 1] = '\0';
+            message.text_len--;
+        }
+
+        message.text_len++;  // Inclui o caractere nulo
+
+        // Envia a mensagem para o servidor
+        if (send(sock, &message, sizeof(message), 0) < 0) {
+            perror("Erro ao enviar mensagem");
+            break;
+        }
+
+        printf("Mensagem enviada para %d: %s\n", dest_id, message.text);
+    }
 }

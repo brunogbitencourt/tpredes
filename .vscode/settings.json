@@ -2,6 +2,7 @@
     "files.associations": {
         "socket.h": "c",
         "sigaction.h": "c",
-        "cerrno": "c"
+        "cerrno": "c",
+        "signal.h": "c"
     }
 }

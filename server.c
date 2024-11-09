@@ -14,10 +14,13 @@
 
 
 #define MAX_CLIENTS 20 // Limite de 10 clientes por tipo (exibição e envio)
-#define PORT 8080
+#define PORT 9254
 #define MAX_TEXT_LEN 141
+#define PERIODIC_INTERVAL 5000
 
-volatile sig_atomic_t timer_expired = 0;
+int client_uids[MAX_CLIENTS];
+
+volatile sig_atomic_t timer_expired = 0; 
 
 typedef struct {
     unsigned short int type;
@@ -27,22 +30,25 @@ typedef struct {
     unsigned char text[MAX_TEXT_LEN];
 } msg_t;
 
-void setup_timer();
 void send_periodic_message(fd_set *clients, int *client_fds);
 void handle_message(int client_fd, int *client_fds, fd_set *clients);
+void timer_handler(int signum);
+void setup_timer(int milliseconds);
+
 
 int main() {
     int server_fd, new_socket;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
 
-    setup_timer();
+    //setup_handler();
 
     fd_set clients; // Estrutura de dados utilizada para represntar um conunto de sockets
     int client_fds[MAX_CLIENTS];
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         client_fds[i] = -1;
+        client_uids[i] = -1; 
     }
     
     // AF_INET -> IPv4, SOCK_STREAM -> TCP
@@ -70,17 +76,30 @@ int main() {
     FD_ZERO(&clients); // Inicializa estrutura de clientes
     FD_SET(server_fd, &clients);
 
+    // Configura o tratador de sinal para o temporizador e o temporizador
+    signal(SIGALRM, timer_handler);
+    setup_timer(PERIODIC_INTERVAL);
+
+
 
     while(1){
+        
+        struct timeval timeout;
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
 
         fd_set read_fds = clients; // Mantem um registro dos clientes conectados aos sockets
-
-        int activity =  select(FD_SETSIZE, &read_fds, NULL, NULL, NULL);
+        
+        // O select agora não bloqueará indefinidamente
+        int activity = select(FD_SETSIZE, &read_fds, NULL, NULL, &timeout);
 
         if (activity < 0 && errno != EINTR) {
             perror("Erro no select");
             exit(EXIT_FAILURE);
         }
+
+
+        
 
         if (FD_ISSET(server_fd, &read_fds)) {
             if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
@@ -99,19 +118,25 @@ int main() {
             }
         }
 
-        if (timer_expired) {
-            send_periodic_message(&clients, client_fds);
-            timer_expired = 0;
-        }
+        // if (timer_expired) {
+        //     printf("Timer expirado, preparando para enviar mensagem periódica.\n");
+        //     send_periodic_message(&clients, client_fds);
+        //     timer_expired = 0;
+        //     setup_timer(5000);
+        // }      
+
 
 
         // Loop para verificar atividade dos clientes conectados
         for (int i = 0; i < MAX_CLIENTS; i++) {
             int client_fd = client_fds[i];
             if (client_fd != -1 && FD_ISSET(client_fd, &read_fds)) {
-                handle_message(client_fd, client_fds, &clients);
+                handle_message(client_fd, client_fds, &read_fds);               
+
             }
         }
+
+
     }
    
    
@@ -119,50 +144,46 @@ int main() {
    return 0;
 }
 
-void handle_timer(int signum) {
+void timer_handler(int signum) {
     timer_expired = 1;
 }
 
 
-void setup_timer() {
-    struct sigaction sa;
+
+void setup_timer(int milliseconds) {
     struct itimerval timer;
 
-    sa.sa_handler = &handle_timer;
-    sa.sa_flags = SA_RESTART;
-    sigaction(SIGALRM, &sa, NULL);
-
-    timer.it_value.tv_sec = 60;
-    timer.it_value.tv_usec = 0;
-    timer.it_interval.tv_sec = 60;
+    timer.it_value.tv_sec = milliseconds / 1000;
+    timer.it_value.tv_usec = (milliseconds % 1000) * 1000;
+    timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0;
 
     setitimer(ITIMER_REAL, &timer, NULL);
 }
 
+
 void send_periodic_message(fd_set *clients, int *client_fds) {
+    printf("Enviando mensagem periódica para todos os clientes conectados.\n");
     msg_t message;
-    message.type = 2;              // Tipo 2 pode representar uma mensagem de status periódica
-    message.orig_uid = 0;           // ID do servidor (0 para indicar origem do servidor)
-    message.dest_uid = 0;           // 0 indica que a mensagem é para todos os exibidores
+    message.type = 2;
+    message.orig_uid = 0;
+    message.dest_uid = 0;
     snprintf((char*)message.text, MAX_TEXT_LEN, "Servidor ativo: mensagem periódica.");
-    message.text_len = strlen((char*)message.text) + 1; // Inclui o caractere nulo
+    message.text_len = strlen((char*)message.text) + 1;
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         int client_fd = client_fds[i];
         if (client_fd != -1 && FD_ISSET(client_fd, clients)) {
-            // Envia a mensagem para o cliente
+            printf("Enviando mensagem para cliente no socket %d\n", client_fd);
             if (send(client_fd, &message, sizeof(message), 0) < 0) {
                 perror("Falha ao enviar mensagem periódica");
             }
         }
     }
-
-    printf("Mensagem periódica enviada para todos os clientes conectados.\n");
 }
 
-
 void handle_message(int client_fd, int *client_fds, fd_set *clients) {
+    //printf("entrou handle_message ");
     msg_t message;
     int bytes_received = recv(client_fd, &message, sizeof(message), 0);
 
@@ -184,42 +205,56 @@ void handle_message(int client_fd, int *client_fds, fd_set *clients) {
         return;
     }
 
-    switch (message.type) {
-        case 0:  // OI
-            printf("Cliente %d identificado com ID %d.\n", client_fd, message.orig_uid);
-            send(client_fd, &message, sizeof(message), 0);  // Envia de volta a confirmação "OI"
-            break;
+    printf("Mensagem recebida do cliente %d, tipo %d.\n", client_fd, message.type);
 
-        case 1:  // TCHAU
-            printf("Cliente %d se desconectando.\n", client_fd);
-            close(client_fd);
-            FD_CLR(client_fd, clients);
+    switch (message.type) {
+        case 0:
+            printf("Cliente %d identificado com ID %d.\n", client_fd, message.orig_uid);
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (client_fds[i] == client_fd) {
-                    client_fds[i] = -1;
+                    client_uids[i] = message.orig_uid;  // Salva o UID do cliente
                     break;
                 }
             }
+
+
+            send(client_fd, &message, sizeof(message), 0);
             break;
 
-        case 2:  // MSG
-            if (message.dest_uid == 0) {  // Broadcast para todos
-                printf("Mensagem pública de %d: %s\n", message.orig_uid, message.text);
-                for (int i = 0; i < MAX_CLIENTS; i++) {
-                    int dest_fd = client_fds[i];
-                    if (dest_fd != -1 && dest_fd != client_fd) {
-                        send(dest_fd, &message, sizeof(message), 0);
-                    }
-                }
-            } else {  // Mensagem privada
-                printf("Mensagem privada de %d para %d: %s\n", message.orig_uid, message.dest_uid, message.text);
-                for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (client_fds[i] != -1 && client_fds[i] != client_fd) {
-                        send(client_fds[i], &message, sizeof(message), 0);
-                    }
+        // case 1:
+        //     printf("Cliente %d se desconectando.\n", client_fd);
+        //     close(client_fd);
+        //     FD_CLR(client_fd, clients);
+        //     for (int i = 0; i < MAX_CLIENTS; i++) {
+        //         if (client_fds[i] == client_fd) {
+        //             client_fds[i] = -1;
+        //             break;
+        //         }
+        //     }
+        //     break;
+
+        case 2:
+        if (message.dest_uid == 0) {
+            // Mensagem pública: enviada para todos os clientes, exceto o remetente
+            printf("Mensagem pública de %d: %s\n", message.orig_uid, message.text);
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                int dest_fd = client_fds[i];
+                if (dest_fd != -1 && dest_fd != client_fd) {
+                    send(dest_fd, &message, sizeof(message), 0);
                 }
             }
-            break;
+        } else {
+            // Mensagem privada: enviada apenas para o cliente com dest_uid correspondente
+            printf("Mensagem privada de %d para %d: %s\n", message.orig_uid, message.dest_uid, message.text);
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (client_fds[i] != -1 && client_uids[i] == message.dest_uid) {
+                    send(client_fds[i], &message, sizeof(message), 0);
+                    break; // Envia apenas para o cliente específico
+                }
+            }
+        }
+        break;
+
 
         default:
             printf("Tipo de mensagem desconhecido.\n");
