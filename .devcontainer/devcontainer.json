@@ -8,9 +8,14 @@
         "terminal.integrated.shell.linux": "/bin/bash"
     },
     "extensions": [
-        "ms-vscode.cpptools",
-        "ms-azuretools.vscode-docker"
+        "ms-vscode.cpptools",                       // C/C++ Extension
+        "ms-azuretools.vscode-docker",               // Docker Extension
+        "austin.code-gnu-global",                    // C/C++ Intellisense
+        "twxs.cmake"                                 // CMake Support
     ],
-    "workspaceFolder": "/workspace",
-    "forwardPorts": [8080]
+    "workspaceFolder": "/workspace",  // Diretório do seu código no contêiner
+    "forwardPorts": [8080],
+    "mounts": [
+        "source=/Users/oscardias/Documents/redes/TP/tpredes,target=/app,type=bind"  // "source=${workspaceFolder},target=/app,type=bind" 
+    ]
 }
