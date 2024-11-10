@@ -1,0 +1,22 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "gcc",
+            "args": [
+                "-g",  // Habilita informações de depuração
+                "${workspaceFolder}/server.c",
+                "-o",
+                "${workspaceFolder}/server"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Tarefa de compilação para o servidor em C"
+        }
+    ]
+}
