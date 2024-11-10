@@ -4,9 +4,13 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <signal.h>
 
 #define PORT 9254
 #define MAX_TEXT_LEN 141
+
+int sock;
+int client_id;
 
 typedef struct {
     unsigned short int type;
@@ -25,6 +29,39 @@ void handle_message(msg_t message) {
     }
 }
 
+void send_exit_message(int sock, int client_id) {
+    msg_t message;
+    message.type = 1;  // Tipo 1 representa "tchau"
+    message.orig_uid = client_id;  // ID do cliente
+    message.dest_uid = 0;
+
+    printf("Enviando mensagem de saída (tchau) do cliente %d para o servidor.\n", client_id);
+    if (send(sock, &message, sizeof(message), 0) < 0) {
+        perror("Erro ao enviar mensagem de saída");
+    } else {
+        printf("Mensagem de saída enviada com sucesso.\n");
+    }
+}
+
+
+void sigint_handler(int signum) {
+    printf("\nSIGINT recebido (Ctrl+C). Deseja sair do sender? (s/n): ");
+    char resposta = getchar();
+    if (resposta == 's' || resposta == 'S') {
+        printf("Encerrando o sender...\n");
+        
+        // Chama a função de envio de mensagem de saída antes de encerrar
+        send_exit_message(sock, client_id);
+        sleep(10);  // Dá tempo para o servidor processar a mensagem
+
+        close(sock);  // Fecha o socket do cliente
+        exit(0);  // Sai do programa
+    } else {
+        printf("Continuando...\n");
+    }
+}
+
+
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         fprintf(stderr, "Uso: %s <identificador> <endereço IP do servidor>\n", argv[0]);
@@ -32,10 +69,12 @@ int main(int argc, char *argv[]) {
     }
 
     int receiver_id = atoi(argv[1]);
+    client_id = receiver_id;
     char *server_ip = argv[2];
-    int sock;
     struct sockaddr_in serv_addr;
     msg_t message;
+
+    
 
     // Validação do ID do cliente
     if (receiver_id < 1 || receiver_id > 999) {
@@ -48,6 +87,8 @@ int main(int argc, char *argv[]) {
         perror("Erro ao criar o socket");
         return -1;
     }
+
+    signal(SIGINT, sigint_handler);
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT);

@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <bits/sigaction.h>
+#include <fcntl.h> 
 #include <asm-generic/signal-defs.h>
 
 
@@ -111,6 +112,7 @@ int main() {
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (client_fds[i] == -1) {
                     client_fds[i] = new_socket;
+                    client_uids[i] = -1;  // Inicialize o UID
                     FD_SET(new_socket, &clients);
                     printf("Cliente conectado no socket %d\n", new_socket);
                     break;
@@ -129,12 +131,22 @@ int main() {
 
         // Loop para verificar atividade dos clientes conectados
         for (int i = 0; i < MAX_CLIENTS; i++) {
-            int client_fd = client_fds[i];
-            if (client_fd != -1 && FD_ISSET(client_fd, &read_fds)) {
-                handle_message(client_fd, client_fds, &read_fds);               
-
+        int client_fd = client_fds[i];
+        
+        // Verifique se o descritor ainda é válido
+        if (client_fd != -1 && FD_ISSET(client_fd, &read_fds)) {
+            // Se o descritor for inválido, remova-o de clients
+            if (fcntl(client_fd, F_GETFD) == -1) {
+                printf("Removendo descritor inválido %d do conjunto clients.\n", client_fd);
+                FD_CLR(client_fd, &clients);
+                client_fds[i] = -1;
+                client_uids[i] = -1;
+                continue;
             }
+
+            handle_message(client_fd, client_fds, &clients);
         }
+    }
 
 
     }
@@ -183,22 +195,30 @@ void send_periodic_message(fd_set *clients, int *client_fds) {
 }
 
 void handle_message(int client_fd, int *client_fds, fd_set *clients) {
-    //printf("entrou handle_message ");
     msg_t message;
     int bytes_received = recv(client_fd, &message, sizeof(message), 0);
 
-    if (bytes_received <= 0) {
-        if (bytes_received == 0) {
-            printf("Cliente %d desconectado.\n", client_fd);
-        } else {
-            perror("Erro ao receber dados");
-        }
-
+    if (bytes_received == 0) {
+        // Cliente fechou a conexão
+        printf("Cliente %d fechou a conexão.\n", client_fd);
         close(client_fd);
-        FD_CLR(client_fd, clients);
+        FD_CLR(client_fd, clients);  // Remova do conjunto `clients`, não `read_fds`
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (client_fds[i] == client_fd) {
                 client_fds[i] = -1;
+                client_uids[i] = -1;
+                break;
+            }
+        }
+        return;
+    } else if (bytes_received < 0) {
+        perror("Erro ao receber dados");
+        close(client_fd);
+        FD_CLR(client_fd, clients);  // Remova do conjunto `clients`
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (client_fds[i] == client_fd) {
+                client_fds[i] = -1;
+                client_uids[i] = -1;
                 break;
             }
         }
@@ -216,45 +236,23 @@ void handle_message(int client_fd, int *client_fds, fd_set *clients) {
                     break;
                 }
             }
-
-
             send(client_fd, &message, sizeof(message), 0);
             break;
 
-        // case 1:
-        //     printf("Cliente %d se desconectando.\n", client_fd);
-        //     close(client_fd);
-        //     FD_CLR(client_fd, clients);
-        //     for (int i = 0; i < MAX_CLIENTS; i++) {
-        //         if (client_fds[i] == client_fd) {
-        //             client_fds[i] = -1;
-        //             break;
-        //         }
-        //     }
-        //     break;
-
-        case 2:
-        if (message.dest_uid == 0) {
-            // Mensagem pública: enviada para todos os clientes, exceto o remetente
-            printf("Mensagem pública de %d: %s\n", message.orig_uid, message.text);
+        case 1:
+            printf("Mensagem de desconexão recebida do cliente %d.\n", client_fd);
+            printf("Cliente %d se desconectando.\n", client_fd);
+            close(client_fd);
+            FD_CLR(client_fd, clients);  // Certifique-se de remover de `clients`
             for (int i = 0; i < MAX_CLIENTS; i++) {
-                int dest_fd = client_fds[i];
-                if (dest_fd != -1 && dest_fd != client_fd) {
-                    send(dest_fd, &message, sizeof(message), 0);
+                if (client_fds[i] == client_fd) {
+                    client_fds[i] = -1;
+                    client_uids[i] = -1;
+                    break;
                 }
             }
-        } else {
-            // Mensagem privada: enviada apenas para o cliente com dest_uid correspondente
-            printf("Mensagem privada de %d para %d: %s\n", message.orig_uid, message.dest_uid, message.text);
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (client_fds[i] != -1 && client_uids[i] == message.dest_uid) {
-                    send(client_fds[i], &message, sizeof(message), 0);
-                    break; // Envia apenas para o cliente específico
-                }
-            }
-        }
-        break;
-
+            printf("Cliente %d removido com sucesso.\n", client_fd);
+            break;
 
         default:
             printf("Tipo de mensagem desconhecido.\n");
