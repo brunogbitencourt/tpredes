@@ -6,7 +6,7 @@
 #include <errno.h>
 #include <signal.h>
 
-#define PORT 9254
+#define PORT 8080
 #define MAX_TEXT_LEN 141
 
 int sock;
@@ -26,9 +26,9 @@ void send_message(int sock, int sender_id);
 void handle_message(msg_t message) {
     // Exibe a origem e o conteúdo da mensagem recebida
     if (message.dest_uid == 0) {
-        printf("Mensagem pública de %d: %s\n", message.orig_uid, message.text);
+        printf("SENDER........: Mensagem pública de %d: \n%s\n", message.orig_uid, message.text);
     } else {
-        printf("Mensagem privada de %d para %d: %s\n", message.orig_uid, message.dest_uid, message.text);
+        printf("SENDER........: Mensagem privada de %d para %d: \n%s\n", message.orig_uid, message.dest_uid, message.text);
     }
 }
 
@@ -38,18 +38,18 @@ void send_exit_message(int sock, int client_id) {
     message.orig_uid = client_id;  // ID do cliente
     message.dest_uid = 0;
 
-    printf("Enviando mensagem de saída (tchau) do cliente %d para o servidor.\n", client_id);
+    //printf("Enviando mensagem de saída (tchau) do cliente %d para o servidor.\n", client_id);
     if (send(sock, &message, sizeof(message), 0) < 0) {
-        perror("Erro ao enviar mensagem de saída");
+        perror("SENDER........: Erro ao enviar mensagem de saída");
     } else {
-        printf("Mensagem de saída enviada com sucesso.\n");
+        printf("SENDER........: Mensagem de saída enviada com sucesso.\n");
     }
 }
 
 
 
 void sigint_handler(int signum) {
-    printf("Encerrando o sender...\n");        
+    printf("SENDER........: Encerrando o sender...\n");        
         
     send_exit_message(sock, client_id);
     sleep(5);  
@@ -60,7 +60,7 @@ void sigint_handler(int signum) {
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        fprintf(stderr, "Uso: %s <identificador> <endereço IP do servidor>\n", argv[0]);
+        fprintf(stderr, "SENDER........: Uso: %s <identificador> <endereço IP do servidor>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -74,12 +74,12 @@ int main(int argc, char *argv[]) {
     msg_t message;
 
     if (sender_id < 1001 || sender_id > 1999) {
-        fprintf(stderr, "Erro: O identificador deve estar entre 1001 e 1999.\n");
+        fprintf(stderr, "SENDER........: Erro: O identificador deve estar entre 1001 e 1999.\n");
         exit(EXIT_FAILURE);
     }
 
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Erro ao criar o socket");
+        perror("SENDER........: Erro ao criar o socket");
         return -1;
     }
 
@@ -87,12 +87,12 @@ int main(int argc, char *argv[]) {
     serv_addr.sin_port = htons(PORT);
 
     if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) <= 0) {
-        perror("Endereço inválido");
+        perror("SENDER........: Endereço inválido");
         return -1;
     }
 
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Falha na conexão");
+        perror("SENDER........: Falha na conexão");
         return -1;
     }
 
@@ -106,16 +106,16 @@ int main(int argc, char *argv[]) {
     message.text_len = strlen((char*)message.text) + 1;
 
     if (send(sock, &message, sizeof(message), 0) < 0) {
-        perror("Erro ao enviar mensagem de identificação");
+        perror("SENDER........: Erro ao enviar mensagem de identificação");
         close(sock);
         return -1;
     }
 
     // Aguarda a confirmação "OI" do servidor
     if (recv(sock, &message, sizeof(message), 0) > 0 && message.type == 0) {
-        printf("Conectado ao servidor como sender com ID %d.\n", sender_id);
+        printf("SENDER........: Conectado ao servidor como sender com ID %d.\n", sender_id);
     } else {
-        printf("Falha ao receber confirmação do servidor. Encerrando conexão.\n");
+        printf("SENDER........: Falha ao receber confirmação do servidor. Encerrando conexão.\n");
         close(sock);
         return -1;
     }
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
     message.text_len = strlen((char*)message.text) + 1;
 
     if (send(sock, &message, sizeof(message), 0) < 0) {
-        perror("Erro ao enviar mensagem de saída");
+        perror("SENDER........: Erro ao enviar mensagem de saída");
     }
 
     close(sock);
@@ -145,13 +145,13 @@ void send_message(int sock, int sender_id) {
     message.orig_uid = sender_id;
 
     while (1) {
-        printf("Digite o ID do destinatário (0 para todos): ");
+        printf("SENDER........: Digite o ID do destinatário (0 para todos): ");
         int dest_id;
         scanf("%d", &dest_id);
         getchar();  // Remove o caractere de nova linha do buffer
         message.dest_uid = dest_id;
 
-        printf("Digite sua mensagem (máximo %d caracteres): ", MAX_TEXT_LEN - 1);
+        printf("SENDER........: Digite sua mensagem (máximo %d caracteres): ", MAX_TEXT_LEN - 1);
         fgets((char*)message.text, MAX_TEXT_LEN, stdin);
 
         // Remove o '\n' da mensagem, se presente
@@ -165,10 +165,10 @@ void send_message(int sock, int sender_id) {
 
         // Envia a mensagem para o servidor
         if (send(sock, &message, sizeof(message), 0) < 0) {
-            perror("Erro ao enviar mensagem");
+            perror("SENDER........: Erro ao enviar mensagem");
             break;
         }
 
-        printf("Mensagem enviada para %d: %s\n", dest_id, message.text);
+        printf("SENDER........: Mensagem enviada para %d: %s\n", dest_id, message.text);
     }
 }
