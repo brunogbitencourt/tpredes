@@ -51,7 +51,7 @@ int main() {
     
     // AF_INET -> IPv4, SOCK_STREAM -> TCP
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("Falha na criação do socket");
+        perror("SERVIDOR......: Falha na criação do socket");
         exit(EXIT_FAILURE);
     }
    
