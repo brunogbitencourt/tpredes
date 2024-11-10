@@ -6,7 +6,7 @@
 #include <errno.h>
 #include <signal.h>
 
-#define PORT 9254
+#define PORT 8080
 #define MAX_TEXT_LEN 141
 
 int sock;

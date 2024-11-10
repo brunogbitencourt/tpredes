@@ -15,7 +15,7 @@
 
 
 #define MAX_CLIENTS 20 
-#define PORT 9254
+#define PORT 8080
 #define MAX_TEXT_LEN 141
 #define PERIODIC_INTERVAL 5000
 
