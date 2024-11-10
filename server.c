@@ -253,6 +253,30 @@ void handle_message(int client_fd, int *client_fds, fd_set *clients) {
             }
             printf("Cliente %d removido com sucesso.\n", client_fd);
             break;
+        
+        case 2:
+        if (message.dest_uid == 0) {
+            // Mensagem pública: enviada para todos os clientes, exceto o remetente
+            printf("Mensagem pública de %d: %s\n", message.orig_uid, message.text);
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                int dest_fd = client_fds[i];
+                if (dest_fd != -1 && dest_fd != client_fd) {
+                    send(dest_fd, &message, sizeof(message), 0);
+                }
+            }
+        } else {
+            // Mensagem privada: enviada apenas para o cliente com dest_uid correspondente
+            printf("Mensagem privada de %d para %d: %s\n", message.orig_uid, message.dest_uid, message.text);
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (client_fds[i] != -1 && client_uids[i] == message.dest_uid) {
+                    send(client_fds[i], &message, sizeof(message), 0);
+                    break; // Envia apenas para o cliente específico
+                }
+            }
+        }
+        break;
+
+
 
         default:
             printf("Tipo de mensagem desconhecido.\n");

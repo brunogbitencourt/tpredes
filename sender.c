@@ -4,9 +4,14 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <signal.h>
 
 #define PORT 9254
 #define MAX_TEXT_LEN 141
+
+int sock;
+int client_id;
+
 
 typedef struct {
     unsigned short int type;
@@ -18,6 +23,41 @@ typedef struct {
 
 void send_message(int sock, int sender_id);
 
+void handle_message(msg_t message) {
+    // Exibe a origem e o conteúdo da mensagem recebida
+    if (message.dest_uid == 0) {
+        printf("Mensagem pública de %d: %s\n", message.orig_uid, message.text);
+    } else {
+        printf("Mensagem privada de %d para %d: %s\n", message.orig_uid, message.dest_uid, message.text);
+    }
+}
+
+void send_exit_message(int sock, int client_id) {
+    msg_t message;
+    message.type = 1;  // Tipo 1 representa "tchau"
+    message.orig_uid = client_id;  // ID do cliente
+    message.dest_uid = 0;
+
+    printf("Enviando mensagem de saída (tchau) do cliente %d para o servidor.\n", client_id);
+    if (send(sock, &message, sizeof(message), 0) < 0) {
+        perror("Erro ao enviar mensagem de saída");
+    } else {
+        printf("Mensagem de saída enviada com sucesso.\n");
+    }
+}
+
+
+
+void sigint_handler(int signum) {
+    printf("Encerrando o sender...\n");        
+        
+    send_exit_message(sock, client_id);
+    sleep(5);  
+    close(sock);  
+    exit(0); 
+}
+
+
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         fprintf(stderr, "Uso: %s <identificador> <endereço IP do servidor>\n", argv[0]);
@@ -25,8 +65,11 @@ int main(int argc, char *argv[]) {
     }
 
     int sender_id = atoi(argv[1]);
+    client_id = sender_id;
+
     char *server_ip = argv[2];
-    int sock;
+    
+    
     struct sockaddr_in serv_addr;
     msg_t message;
 
@@ -52,6 +95,8 @@ int main(int argc, char *argv[]) {
         perror("Falha na conexão");
         return -1;
     }
+
+    signal(SIGINT, sigint_handler);    
 
     // Envia uma mensagem "OI" para se registrar no servidor
     message.type = 0;  // Tipo 0 representa "OI"

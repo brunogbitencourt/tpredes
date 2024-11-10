@@ -4,6 +4,7 @@
         "sigaction.h": "c",
         "cerrno": "c",
         "signal.h": "c",
-        "inet.h": "c"
+        "inet.h": "c",
+        "errno.h": "c"
     }
 }

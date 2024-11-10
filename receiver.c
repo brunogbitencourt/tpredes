@@ -45,20 +45,12 @@ void send_exit_message(int sock, int client_id) {
 
 
 void sigint_handler(int signum) {
-    printf("\nSIGINT recebido (Ctrl+C). Deseja sair do sender? (s/n): ");
-    char resposta = getchar();
-    if (resposta == 's' || resposta == 'S') {
-        printf("Encerrando o sender...\n");
+    printf("Encerrando o sender...\n");        
         
-        // Chama a função de envio de mensagem de saída antes de encerrar
-        send_exit_message(sock, client_id);
-        sleep(10);  // Dá tempo para o servidor processar a mensagem
-
-        close(sock);  // Fecha o socket do cliente
-        exit(0);  // Sai do programa
-    } else {
-        printf("Continuando...\n");
-    }
+    send_exit_message(sock, client_id);
+    sleep(5);  
+    close(sock);  
+    exit(0); 
 }
 
 
