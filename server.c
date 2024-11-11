@@ -17,9 +17,10 @@
 #define MAX_CLIENTS 20 
 #define PORT 8080
 #define MAX_TEXT_LEN 141
-#define PERIODIC_INTERVAL 5000
+#define PERIODIC_INTERVAL 20
 
 int client_uids[MAX_CLIENTS];
+volatile sig_atomic_t timer_expired = 0;
 
 typedef struct {
     unsigned short int type;
@@ -32,7 +33,7 @@ typedef struct {
 void send_periodic_message(fd_set *clients, int *client_fds);
 void handle_message(int client_fd, int *client_fds, fd_set *clients);
 void timer_handler(int signum);
-void setup_timer(int milliseconds);
+void setup_timer(int interval);
 
 
 int main() {
@@ -73,9 +74,11 @@ int main() {
 
     FD_ZERO(&clients); // Inicializa estrutura de clientes
     FD_SET(server_fd, &clients);
-
+    setup_timer(PERIODIC_INTERVAL); 
 
     while(1){
+
+      
         
         struct timeval timeout;
         timeout.tv_sec = 1;
@@ -108,6 +111,11 @@ int main() {
                     break;
                 }
             }
+        }
+
+        if (timer_expired) {
+            send_periodic_message(&clients, client_fds);
+            timer_expired = 0;  // Redefine o temporizador
         }
 
 
@@ -224,5 +232,54 @@ void handle_message(int client_fd, int *client_fds, fd_set *clients) {
         default:
             printf("SERVIDOR......: Tipo de mensagem desconhecido.\n");
             break;
+    }
+}
+
+void timer_handler(int signum) {
+    timer_expired = 1;
+    printf("SERVIDOR......: Temporizador expirou. Enviando mensagem periódica.\n");
+}
+
+void setup_timer(int interval) {
+    struct sigaction sa;
+    struct itimerval timer;
+
+    sa.sa_handler = timer_handler;
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGALRM, &sa, NULL);
+
+    timer.it_value.tv_sec = interval;
+    timer.it_value.tv_usec = 0;
+    timer.it_interval.tv_sec = interval;
+    timer.it_interval.tv_usec = 0;
+
+    if (setitimer(ITIMER_REAL, &timer, NULL) < 0) {
+        perror("SERVIDOR......: Erro ao configurar o temporizador");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("SERVIDOR......: Temporizador configurado para %d segundos.\n", interval);
+}
+
+
+// Envia uma mensagem periódica a todos os clientes conectados
+void send_periodic_message(fd_set *clients, int *client_fds) {
+    msg_t message;
+    message.type = 2;
+    message.orig_uid = 0;  // ID do servidor
+    message.dest_uid = 0;  // 0 indica que a mensagem é para todos os exibidores
+    snprintf((char*)message.text, MAX_TEXT_LEN, "Servidor ativo: mensagem periódica.");
+    message.text_len = strlen((char*)message.text) + 1;
+
+    printf("SERVIDOR......: Enviando mensagem periódica para clientes conectados.\n");
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        int client_fd = client_fds[i];
+        if (client_fd != -1 && FD_ISSET(client_fd, clients)) {
+            printf("SERVIDOR......: Enviando mensagem para o cliente %d\n", client_fd);
+            if (send(client_fd, &message, sizeof(message), 0) < 0) {
+                perror("SERVIDOR......: Falha ao enviar mensagem periódica");
+            }
+        }
     }
 }
